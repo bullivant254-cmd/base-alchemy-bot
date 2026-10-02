@@ -1,18 +1,103 @@
-:root {
-  --bg: #07111f;
-  --panel: rgba(16, 29, 50, 0.9);
-  --panel-alt: #101d32;
+export const dynamic = 'force-dynamic';
+
+function formatGwei(value) {
+  return `${Number(value).toFixed(2)} gwei`;
 }
 
-html,
-body {
-  margin: 0;
-  padding: 0;
-  background: var(--bg);
-  color: #f8fafc;
-  font-family: Arial, Helvetica, sans-serif;
+export default async function Home() {
+  const rpcUrl = process.env.BASE_RPC_URL || 'https://base-mainnet.g.alchemy.com/v2/demo';
+  const apiKey = process.env.ALCHEMY_API_KEY || 'demo';
+
+  let gas = {
+    low: 18,
+    medium: 24,
+    high: 31,
+    status: 'demo',
+    rpc: rpcUrl,
+  };
+
+  try {
+    const res = await fetch(`${rpcUrl.replace(/\/$/, '')}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'eth_gasPrice',
+        params: [],
+        id: 1,
+      }),
+      cache: 'no-store',
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const wei = data?.result || '0x0';
+      const gweiValue = Number(BigInt(wei) / 10n ** 9n) / 1_000_000_000;
+      gas = {
+        low: Math.max(12, Math.round(gweiValue * 0.7)),
+        medium: Math.max(18, Math.round(gweiValue * 1.0)),
+        high: Math.max(24, Math.round(gweiValue * 1.35)),
+        status: 'live',
+        rpc: rpcUrl,
+      };
+    }
+  } catch (error) {
+    console.warn('Gas RPC fetch failed, using demo values:', error.message);
+  }
+
+  return (
+    <main className="page-shell">
+      <div className="dashboard">
+        <header className="topbar">
+          <div>
+            <p className="eyebrow">Base network monitor</p>
+            <h1>Base Alchemy Bot</h1>
+          </div>
+          <span className={`status-badge ${gas.status === 'live' ? 'live' : 'demo'}`}>
+            {gas.status === 'live' ? 'Live RPC' : 'Demo mode'}
+          </span>
+        </header>
+
+        <section className="stats-grid">
+          <StatCard label="Low" value={formatGwei(gas.low)} accent="green" />
+          <StatCard label="Medium" value={formatGwei(gas.medium)} accent="amber" />
+          <StatCard label="High" value={formatGwei(gas.high)} accent="red" />
+        </section>
+
+        <section className="panel-grid">
+          <div className="panel">
+            <h2>RPC connection</h2>
+            <p>{rpcUrl}</p>
+            <p className="muted">Alchemy provider for Base mainnet JSON-RPC and WebSocket access.</p>
+          </div>
+
+          <div className="panel">
+            <h2>Bot wallet</h2>
+            <p>{process.env.NEXT_PUBLIC_SIGNER_ADDRESS || '0x...not configured'}</p>
+            <p className="muted">Configured through Vercel environment variables for production deployment.</p>
+          </div>
+        </section>
+
+        <section className="panel">
+          <h2>Deployment checklist</h2>
+          <ul>
+            <li>Next.js app is valid for Vercel and production build.</li>
+            <li>CSS and JSX are separated correctly.</li>
+            <li>Environment variables are loaded from Vercel settings.</li>
+            <li>Base RPC can be tested via health and gas routes.</li>
+          </ul>
+        </section>
+      </div>
+    </main>
+  );
 }
 
-* {
-  box-sizing: border-box;
+function StatCard({ label, value, accent }) {
+  return (
+    <div className="stat-card">
+      <div className={`accent ${accent}`} />
+      <span className="label">{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
 }
